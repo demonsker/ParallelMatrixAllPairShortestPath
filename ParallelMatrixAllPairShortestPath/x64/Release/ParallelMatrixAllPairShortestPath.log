@@ -1,0 +1,8 @@
+﻿  ParallelMatrixAllPairShortestPath.cpp
+ParallelMatrixAllPairShortestPath.cpp(75): warning C4101: 'j': unreferenced local variable
+  Generating code
+  6 of 13 functions (46.2%) were compiled, the rest were copied from previous compilation.
+    0 functions were new in current compilation
+    0 functions had inline decision re-evaluated but remain unchanged
+  Finished generating code
+  ParallelMatrixAllPairShortestPath.vcxproj -> C:\Users\EucliwoodX\Documents\Visual Studio 2015\Projects\ParallelMatrixAllPairShortestPath\x64\Release\ParallelMatrixAllPairShortestPath.exe
