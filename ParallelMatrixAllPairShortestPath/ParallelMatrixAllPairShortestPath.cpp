@@ -225,7 +225,7 @@ void initialize(int **sour, int **dest)
 	{
 		for (j = 0; j < SIZE; j++)
 		{
-			dest[j][i] = sour[i][j];
+			dest[i][j] = sour[i][j];
 		}
 	}
 }
