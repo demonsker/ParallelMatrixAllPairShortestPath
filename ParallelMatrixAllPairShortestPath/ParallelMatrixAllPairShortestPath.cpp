@@ -3,29 +3,32 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define PATH "C:\\Users\\Eucliwood\\Desktop\\stat(SaveMode)\\Parallel\\"
 #define INF 999999
 #define SIZE 2048
 
-void generate(int **);
-void initialize(int **, int **);
-void findAllPairShortestPath(int **, int **, int **, int);
-int getSizePerProcess(int);
-int getBeginIndexFromInput();
-void printProcess(int **, int n);
-void print(int **);
-void useExampleData(int **);
+void array_cpy(int[][SIZE], int[][SIZE]);
+void distance_generate(int[][SIZE]);
+void distance_useexample(int[][SIZE]);
+void find_AllPairShortestPath(int[][SIZE],int[][SIZE], int[][SIZE], int);
+int get_datasize_per_process(int);
+int get_beginindex_frominput(int);
+void process_print(int[][SIZE], int);
+void array_print(int[][SIZE]);
+void log_save(float);
+
 
 int world_size, world_rank;
 
 int main(int argc, char** argv) {
 
-	double start1, end1, start2, end2;
+	double start_1, end_1, start_2, end_2;
 
 	// Initialize the MPI environment
 	MPI_Init(NULL, NULL);
 
 	//Before setup
-	start1 = MPI_Wtime();
+	start_1 = MPI_Wtime();
 
 	// Get the number of processes
 	MPI_Comm_size(MPI_COMM_WORLD, &world_size);
@@ -34,134 +37,80 @@ int main(int argc, char** argv) {
 	MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
 
 	//Number of row per processor
-	int n = getSizePerProcess(world_rank);
+	int row_per_process = get_datasize_per_process(world_rank);
 
-	//create memory for copy part of full distance
+	//create memory for receive distance , path
 	int i, j;
-	int **partOfDistance;
-	partOfDistance = (int**)malloc(n * sizeof(int*));
-	for (i = 0; i < n; i++)
-	{
-		partOfDistance[i] = (int*)malloc(SIZE * sizeof(int));
-	}
-
-	//ceate memory for receive path
-	int **partOfPath;
-	partOfPath = (int**)malloc(n * sizeof(int*));
-	for (i = 0; i < n; i++)
-	{
-		partOfPath[i] = (int*)malloc(SIZE * sizeof(int));
+	int(*part_of_distance)[SIZE], (*part_of_path)[SIZE], (*distance)[SIZE];
+	part_of_distance = (int(*)[SIZE]) malloc(row_per_process * sizeof(int[SIZE]));
+	part_of_path = (int(*)[SIZE]) malloc(row_per_process * sizeof(int[SIZE]));
+	distance = (int(*)[SIZE]) malloc(SIZE * sizeof(int[SIZE]));
+	for (i = 0; i < row_per_process; i++)
 		for (j = 0; j < SIZE; j++)
-			partOfPath[i][j] = j;
-	}
-
-	//ceate memory for receive full distance
-	int **distance;
-	distance = (int**)malloc(SIZE * sizeof(int*));
-	for (i = 0; i < SIZE; i++)
-	{
-		distance[i] = (int*)malloc(SIZE * sizeof(int));
-	}
+		{
+			part_of_path[i][j] = j;
+		}
 
 	//Master
 	if (world_rank == 0)
-	{
+	{		
 		//After setup
-		end1 = MPI_Wtime();
-		
-		//declare data for generate
-		int **dataGen;
-		dataGen = (int**)malloc(SIZE * sizeof(int*));
-		int i, j;
-		for (i = 0; i < SIZE; i++)
-		{
-			dataGen[i] = (int*)malloc(SIZE * sizeof(int));
-		}
+		end_1 = MPI_Wtime();
 
 		//Generate data
-		generate(dataGen);
-		//useExampleData(dataGen);
+		distance_generate(distance);
+		//distance_useexample(distance);
 
 		//Start calculate
-		start2 = MPI_Wtime();
-
-		initialize(dataGen, distance);
-
+		start_2 = MPI_Wtime();
 	}
 
 	//BroadCast all data to another processor
-	for (i = 0; i < SIZE; i++)
-			MPI_Bcast(distance[i], SIZE, MPI_INT, 0, MPI_COMM_WORLD);
+	MPI_Bcast(distance, SIZE*SIZE, MPI_INT, 0, MPI_COMM_WORLD);
 
 	//partition data
-	int beginIndex = getBeginIndexFromInput();
-	int endIndex = beginIndex + n;
-	int currentIndex = 0;
-	for (i = beginIndex; i < endIndex; i++)
+	int begin_index = get_beginindex_frominput(world_rank);
+	int end_index = begin_index + row_per_process;
+	int current_index = 0;
+	for (i = begin_index; i < end_index; i++)
 	{
 		for (j = 0; j < SIZE; j++)
-			partOfDistance[currentIndex][j] = distance[i][j];
-		currentIndex++;
+			part_of_distance[current_index][j] = distance[i][j];
+		current_index++;
 	}
 
 	//Find shrotest path
-	findAllPairShortestPath(partOfDistance, distance, partOfPath, n);
+	find_AllPairShortestPath(part_of_distance, distance, part_of_path, row_per_process);
 
 	//End calculate
-	end2 = MPI_Wtime();
+	end_2 = MPI_Wtime();
 
-	//printf("Process %d : Distance\n", world_rank);
-	//printProcess(partOfDistance, n);
+    //printf("Process %d : Distance\n", world_rank);
+	//process_print(part_of_distance, row_per_process);
 
 	//printf("Process %d : Path\n", world_rank);
-	//printProcess(partOfPath, n);
+	//process_print(partOfPath, n);
 
-	float diff = (float)(end1 - start1 + end2 - start2);
+	float diff = (float)(end_1 - start_1 + end_2 - start_2);
 	printf("Time : %.4f\n", diff);
 
-	if (world_rank > 0)
-		MPI_Send(&diff, 1, MPI_FLOAT, 0, 0, MPI_COMM_WORLD);
-	else
-	{
-		float temp;
-		for (i = 1; i < world_size; i++)
-		{
-			MPI_Recv(&temp, 1, MPI_FLOAT, i, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-			if (temp > diff)
-				diff = temp;
-		}
-		printf("Finish Time : %.4f\n", diff);
-
-		FILE * fp;
-		char fileName[10];
-		char filePath[70] = "C:\\Users\\EucliwoodX\\Desktop\\STATS\\Matrix\\stat(SaveMode)\\Parallel\\";
-
-		sprintf(fileName, "%d.txt", SIZE);
-		strcat(filePath, fileName);
-		fp = fopen(filePath, "a");
-		fprintf(fp, "%d Process\n %.4f\n\n", world_size, diff);
-		fclose(fp);
-	}
+	log_save(diff);
 
 	MPI_Finalize();
 }
 
-void findAllPairShortestPath(int **partOfDistance, int **distance, int **path, int n)
+void find_AllPairShortestPath(int partOfDistance[][SIZE], int distance[][SIZE], int path[][SIZE], int row_per_process)
 {
-	int **tempGraph;
 	int i, j, k, r;
-	tempGraph = (int**)malloc(SIZE * sizeof(int*));
-	for (i = 0; i < SIZE; i++)
-	{
-		tempGraph[i] = (int*)malloc(SIZE * sizeof(int));
-	}
+	int (*tempGraph)[SIZE];
+	tempGraph = (int(*)[SIZE]) malloc(SIZE * sizeof(int[SIZE]));
 	
-	initialize(distance, tempGraph);
+	array_cpy(distance, tempGraph);
 	
 	int round = (int)(log10(SIZE) / log10(2));
 	for (r = 0; r < round; r++)
 	{		
-		for (i = 0; i < n; i++)
+		for (i = 0; i < row_per_process; i++)
 		{
 			for (j = 0; j < SIZE; j++)
 			{
@@ -177,28 +126,28 @@ void findAllPairShortestPath(int **partOfDistance, int **distance, int **path, i
 		}
 
 		//Integrate partOfDistance to tempGraph
-		int row,p;
 		if (world_rank != 0)
 		{
-			for (row = 0; row < n; row++)
-				MPI_Send(partOfDistance[row], SIZE, MPI_INT, 0, 0, MPI_COMM_WORLD);
+			MPI_Send(partOfDistance, row_per_process*SIZE, MPI_INT, 0, 0, MPI_COMM_WORLD);
 		}
 		else
 		{
-			int beginIndex = n;
+			int p;
 			for (p = 1; p < world_size; p++)
-				for (row = 0; row < getSizePerProcess(p); row++)
-					MPI_Recv(tempGraph[beginIndex++], SIZE, MPI_INT, p, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+			{
+				int row_begin = get_beginindex_frominput(p);
+				int number_of_row = get_datasize_per_process(p);
+				MPI_Recv(tempGraph[row_begin], number_of_row*SIZE, MPI_INT, p, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+			}
 		}
 		
 		//BroadCast all data to another processor
-		for (row = 0; row < SIZE; row++)
-			MPI_Bcast(tempGraph[row], SIZE, MPI_INT, 0, MPI_COMM_WORLD);
+		MPI_Bcast(tempGraph, SIZE*SIZE, MPI_INT, 0, MPI_COMM_WORLD);
 	}
 		
 }
 
-void generate(int **data)
+void distance_generate(int data[][SIZE])
 {
 	int i, j, r;
 
@@ -217,7 +166,7 @@ void generate(int **data)
 	}
 }
 
-void initialize(int **sour, int **dest)
+void array_cpy(int sour[][SIZE], int dest[][SIZE])
 {
 	int i, j;
 
@@ -230,7 +179,7 @@ void initialize(int **sour, int **dest)
 	}
 }
 
-void printProcess(int **distance, int n)
+void process_print(int distance[][SIZE], int n)
 {
 	for (int i = 0; i < n; ++i)
 	{
@@ -246,7 +195,7 @@ void printProcess(int **distance, int n)
 	}
 }
 
-void print(int **m)
+void array_print(int m[][SIZE])
 {
 	printf("Shortest distances between every pair of vertices: \n");
 
@@ -264,7 +213,7 @@ void print(int **m)
 	}
 }
 
-int getSizePerProcess(int rank)
+int get_datasize_per_process(int rank)
 {
 	int n = SIZE / world_size;
 	int m = SIZE % world_size;
@@ -273,14 +222,14 @@ int getSizePerProcess(int rank)
 			n++;
 	return n;
 }
-int getBeginIndexFromInput()
+int get_beginindex_frominput(int world_rank)
 {
 	if (world_rank == 0) return 0;
 	int begin, end, np, i;
-	end = getSizePerProcess(0);
+	end = get_datasize_per_process(0);
 	for (i = 1; i < world_size; i++)
 	{
-		np = getSizePerProcess(i);
+		np = get_datasize_per_process(i);
 		begin = end;
 		end = begin + np;
 		if (world_rank == i)
@@ -289,7 +238,7 @@ int getBeginIndexFromInput()
 	return -1;
 }
 
-void useExampleData(int **data)
+void distance_useexample(int data[][SIZE])
 {
 	int example[8][8] = {
 		{ 0,1,9,3,INF,INF,INF,INF },
@@ -310,5 +259,33 @@ void useExampleData(int **data)
 		{
 			data[i][j] = example[i][j];
 		}
+	}
+}
+
+void log_save(float diff)
+{
+	int i;
+	if (world_rank > 0)
+		MPI_Send(&diff, 1, MPI_FLOAT, 0, 0, MPI_COMM_WORLD);
+	else
+	{
+		float temp;
+		for (i = 1; i < world_size; i++)
+		{
+			MPI_Recv(&temp, 1, MPI_FLOAT, i, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+			if (temp > diff)
+				diff = temp;
+		}
+		printf("Finish Time : %.4f\n", diff);
+
+		FILE * fp;
+		char fileName[10];
+		char filePath[70] = PATH;
+
+		sprintf(fileName, "%d.txt", SIZE);
+		strcat(filePath, fileName);
+		fp = fopen(filePath, "a");
+		fprintf(fp, "%d Process\n %.4f\n\n", world_size, diff);
+		fclose(fp);
 	}
 }
