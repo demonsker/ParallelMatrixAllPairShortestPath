@@ -5,9 +5,9 @@
 
 #define PATH "C:\\Users\\Eucliwood\\Desktop\\stat(SaveMode)\\Parallel\\"
 #define INF 999999
-#define SIZE 8
+#define SIZE 2048
 
-void array_cpy(int[][SIZE], int[][SIZE]);
+void array_transpose(int[][SIZE]);
 void distance_generate(int[][SIZE]);
 void distance_useexample(int[][SIZE]);
 void find_AllPairShortestPath(int[][SIZE],int[][SIZE], int[][SIZE], int);
@@ -16,7 +16,6 @@ int get_beginindex_frominput(int);
 void process_print(int[][SIZE], int);
 void array_print(int[][SIZE]);
 void log_save(float);
-
 
 int world_size, world_rank;
 
@@ -58,8 +57,8 @@ int main(int argc, char** argv) {
 		end_1 = MPI_Wtime();
 
 		//Generate data
-		//distance_generate(distance);
-		distance_useexample(distance);
+		distance_generate(distance);
+		//distance_useexample(distance);
 
 		//Start calculate
 		start_2 = MPI_Wtime();
@@ -85,8 +84,8 @@ int main(int argc, char** argv) {
 	//End calculate
 	end_2 = MPI_Wtime();
 
-    printf("Process %d : Distance\n", world_rank);
-	process_print(part_of_distance, row_per_process);
+    //printf("Process %d : Distance\n", world_rank);
+	//process_print(part_of_distance, row_per_process);
 
 	//printf("Process %d : Path\n", world_rank);
 	//process_print(part_of_path, row_per_process);
@@ -111,9 +110,9 @@ void find_AllPairShortestPath(int part_of_distance[][SIZE], int distance[][SIZE]
 			{
 				for (k = 0; k < SIZE; k++)
 				{
-					if (part_of_distance[i][k] + distance[k][j] < part_of_distance[i][j])
+					if (part_of_distance[i][k] + distance[j][k] < part_of_distance[i][j])
 					{
-						part_of_distance[i][j] = part_of_distance[i][k] + distance[k][j];
+						part_of_distance[i][j] = part_of_distance[i][k] + distance[j][k];
 						part_of_path[i][j] = part_of_path[i][k];
 					}
 				}
@@ -133,6 +132,7 @@ void find_AllPairShortestPath(int part_of_distance[][SIZE], int distance[][SIZE]
 				int row_begin = get_beginindex_frominput(p);
 				int number_of_row = get_datasize_per_process(p);
 				MPI_Recv(distance[row_begin], number_of_row*SIZE, MPI_INT, p, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+				array_transpose(distance);
 			}
 		}
 		
@@ -161,7 +161,7 @@ void distance_generate(int data[][SIZE])
 	}
 }
 
-void array_cpy(int sour[][SIZE], int dest[][SIZE])
+void array_transpose(int data[][SIZE])
 {
 	int i, j;
 
@@ -169,7 +169,9 @@ void array_cpy(int sour[][SIZE], int dest[][SIZE])
 	{
 		for (j = 0; j < SIZE; j++)
 		{
-			dest[i][j] = sour[i][j];
+			data[i][j] ^= data[j][i];
+			data[j][i] ^= data[i][j];
+			data[i][j] ^= data[j][i];
 		}
 	}
 }
