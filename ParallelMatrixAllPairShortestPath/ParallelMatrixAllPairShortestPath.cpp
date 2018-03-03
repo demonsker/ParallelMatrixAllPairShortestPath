@@ -5,7 +5,7 @@
 
 #define PATH "C:\\Users\\Eucliwood\\Desktop\\stat(SaveMode)\\Parallel\\"
 #define INF 999999
-#define SIZE 2048
+#define SIZE 8
 
 void array_cpy(int[][SIZE], int[][SIZE]);
 void distance_generate(int[][SIZE]);
@@ -58,8 +58,8 @@ int main(int argc, char** argv) {
 		end_1 = MPI_Wtime();
 
 		//Generate data
-		distance_generate(distance);
-		//distance_useexample(distance);
+		//distance_generate(distance);
+		distance_useexample(distance);
 
 		//Start calculate
 		start_2 = MPI_Wtime();
@@ -85,11 +85,11 @@ int main(int argc, char** argv) {
 	//End calculate
 	end_2 = MPI_Wtime();
 
-    //printf("Process %d : Distance\n", world_rank);
-	//process_print(part_of_distance, row_per_process);
+    printf("Process %d : Distance\n", world_rank);
+	process_print(part_of_distance, row_per_process);
 
 	//printf("Process %d : Path\n", world_rank);
-	//process_print(partOfPath, n);
+	//process_print(part_of_path, row_per_process);
 
 	float diff = (float)(end_1 - start_1 + end_2 - start_2);
 	printf("Time : %.4f\n", diff);
@@ -99,14 +99,9 @@ int main(int argc, char** argv) {
 	MPI_Finalize();
 }
 
-void find_AllPairShortestPath(int partOfDistance[][SIZE], int distance[][SIZE], int path[][SIZE], int row_per_process)
-{
+void find_AllPairShortestPath(int part_of_distance[][SIZE], int distance[][SIZE], int part_of_path[][SIZE], int row_per_process)
+{	
 	int i, j, k, r;
-	int (*tempGraph)[SIZE];
-	tempGraph = (int(*)[SIZE]) malloc(SIZE * sizeof(int[SIZE]));
-	
-	array_cpy(distance, tempGraph);
-	
 	int round = (int)(log10(SIZE) / log10(2));
 	for (r = 0; r < round; r++)
 	{		
@@ -116,10 +111,10 @@ void find_AllPairShortestPath(int partOfDistance[][SIZE], int distance[][SIZE], 
 			{
 				for (k = 0; k < SIZE; k++)
 				{
-					if (partOfDistance[i][k] + tempGraph[k][j] < partOfDistance[i][j])
+					if (part_of_distance[i][k] + distance[k][j] < part_of_distance[i][j])
 					{
-						partOfDistance[i][j] = partOfDistance[i][k] + tempGraph[k][j];
-						path[i][j] = path[i][k];
+						part_of_distance[i][j] = part_of_distance[i][k] + distance[k][j];
+						part_of_path[i][j] = part_of_path[i][k];
 					}
 				}
 			}
@@ -128,7 +123,7 @@ void find_AllPairShortestPath(int partOfDistance[][SIZE], int distance[][SIZE], 
 		//Integrate partOfDistance to tempGraph
 		if (world_rank != 0)
 		{
-			MPI_Send(partOfDistance, row_per_process*SIZE, MPI_INT, 0, 0, MPI_COMM_WORLD);
+			MPI_Send(part_of_distance, row_per_process*SIZE, MPI_INT, 0, 0, MPI_COMM_WORLD);
 		}
 		else
 		{
@@ -137,12 +132,12 @@ void find_AllPairShortestPath(int partOfDistance[][SIZE], int distance[][SIZE], 
 			{
 				int row_begin = get_beginindex_frominput(p);
 				int number_of_row = get_datasize_per_process(p);
-				MPI_Recv(tempGraph[row_begin], number_of_row*SIZE, MPI_INT, p, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+				MPI_Recv(distance[row_begin], number_of_row*SIZE, MPI_INT, p, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 			}
 		}
 		
 		//BroadCast all data to another processor
-		MPI_Bcast(tempGraph, SIZE*SIZE, MPI_INT, 0, MPI_COMM_WORLD);
+		MPI_Bcast(distance, SIZE*SIZE, MPI_INT, 0, MPI_COMM_WORLD);
 	}
 		
 }
